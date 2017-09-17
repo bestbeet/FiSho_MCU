@@ -3,47 +3,74 @@
 #include <ESP8266WiFi.h>
 #include <FirebaseArduino.h>
 #include <OneWire.h>
-#include <DallasTemperature.h>
 
-#define ONE_WIRE_BUS D2
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
+// Firebase API
 #define FIREBASE_HOST "fisho-7fc6a.firebaseio.com"
 #define FIREBASE_AUTH "IQJgmypRZvKw2vnTnbP7WSylVViv75UKfyhCZogT"
+
+// Wifi Setting
 #define WIFI_SSID "best"
 #define WIFI_PASSWORD "bestbeet2538"
+
+int pH = A0;// pin A0 pH
+
 
 int i = 0, val = 0;
 String stat;
 float Tempwater;
 
+/////////////////////////////////////////// pH ////////////////////////////////////////////
+float pHsensor()
+{
+  int buf[10];                //buffer for read analog
+  for(int i=0;i<10;i++)       //Get 10 sample value from the sensor for smooth the value
+  {
+    buf[i]=analogRead(SensorPin);
+    delay(10);
+  }
+  for(int i=0;i<9;i++)        //sort the analog from small to large
+  {
+    for(int j=i+1;j<10;j++)
+    {
+      if(buf[i]>buf[j])
+      {
+        int temp=buf[i];
+        buf[i]=buf[j];
+        buf[j]=temp;
+      }
+    }
+  }
+  avgValue=0;
+  for(int i=2;i<8;i++)                      //take the average value of 6 center sample
+    avgValue+=buf[i];
+  float phValue=(float)avgValue*5.0/1024/6; //convert the analog into millivolt
+  phValue=3.5*phValue+Offset;                      //convert the millivolt into pH value    
+ 
+  delay(800);
+  return phValue;
+}
 
-class Tempwater : public Task { 
+//////////////////////////////////// WaterQulity Task ///////////////////////////////////////////
+class WaterQuality : public Task { 
 protected:
      void setup() {
-        pinMode(D5, OUTPUT);
     }
     void loop() {
-          float temp;
+          float temp,turbidity;
           temp = sensors.getTempCByIndex(0);
           sensors.requestTemperatures();
-          Firebase.setFloat("/WaterTemp/", temp);
-          delay(5000);
-          if( temp >= 32){
-            digitalWrite(D5, 1);
-            Firebase.setString("/FiSho/LED/", "Enable");
-          }
-          else{
-            digitalWrite(D5, 0);
-            Firebase.setString("/FiSho/LED/", "Disable");
-          }
+          turbidity = Turbidity();
+          Serial.println(temp);
+          Serial.println(turbidity);
+          Firebase.setFloat("/WaterQuality/Temp/", temp);
+          Firebase.setFloat("/WaterQuality/Turbidity/", turbidity);      
     } 
 private:
     uint8_t state;
-} tempwater_task;
+} quality_task;
 
 
-class PrintTask : public Task {
+/*class PrintTask : public Task {
 protected:
     void setup() {
         pinMode(D1, OUTPUT);
@@ -63,9 +90,9 @@ protected:
           else
              digitalWrite(D1, 0);
     }
-} print_task;
+} print_task;*/
 
-class MemTask : public Task {
+/*class MemTask : public Task {
 public:
     void loop() {
         Serial.print("Free Heap: ");
@@ -73,13 +100,11 @@ public:
         Serial.println(" bytes");
         delay(10000);
     }
-} mem_task;
+} mem_task;*/
 
 
 void setup() {
   Serial.begin(9600);
-  pinMode(D1,OUTPUT);
-  pinMode(D5,OUTPUT);
   WiFi.mode(WIFI_STA);
   // connect to wifi.
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -98,8 +123,6 @@ void setup() {
 
 
   Scheduler.start(&tempwater_task);
-  Scheduler.start(&print_task);
-  Scheduler.start(&mem_task);
   Scheduler.begin();
 } 
 

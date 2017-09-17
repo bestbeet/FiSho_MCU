@@ -5,11 +5,17 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-#define ONE_WIRE_BUS D2
+#define ONE_WIRE_BUS D1 // pin D1 Temprature
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
+
+int Turbiditysensor = A0;// pin A0 Turbidity
+
+// Firebase API
 #define FIREBASE_HOST "fisho-7fc6a.firebaseio.com"
 #define FIREBASE_AUTH "IQJgmypRZvKw2vnTnbP7WSylVViv75UKfyhCZogT"
+
+// Wifi Setting
 #define WIFI_SSID "best"
 #define WIFI_PASSWORD "bestbeet2538"
 
@@ -17,33 +23,40 @@ int i = 0, val = 0;
 String stat;
 float Tempwater;
 
+////////////////////////////////////// Turbidity /////////////////////////////////////////////////
+ float Turbidity ()
+{
+  float val = analogRead(Turbiditysensor);  //create variable to take in analog reading from cell
+  float ardval = val*0.00488758553;  //arduino value units 
+  float r1 = (50000/ardval)-10000; //R1 value when using Ohm's law
+  float I = ardval/r1; //value of I which we are solving for
+  float NTUval = I*70000;  //200 = units in NTU
+ 
+  return NTUval;
+}
 
-class Tempwater : public Task { 
+
+//////////////////////////////////// WaterQulity Task ///////////////////////////////////////////
+class WaterQuality : public Task { 
 protected:
      void setup() {
-        pinMode(D5, OUTPUT);
     }
     void loop() {
-          float temp;
+          float temp,turbidity;
           temp = sensors.getTempCByIndex(0);
           sensors.requestTemperatures();
-          Firebase.setFloat("/WaterTemp/", temp);
-          delay(5000);
-          if( temp >= 32){
-            digitalWrite(D5, 1);
-            Firebase.setString("/FiSho/LED/", "Enable");
-          }
-          else{
-            digitalWrite(D5, 0);
-            Firebase.setString("/FiSho/LED/", "Disable");
-          }
+          turbidity = Turbidity();
+          Serial.println(temp);
+          Serial.println(turbidity);
+          Firebase.setFloat("/WaterQuality/Temp/", temp);
+          Firebase.setFloat("/WaterQuality/Turbidity/", turbidity);      
     } 
 private:
     uint8_t state;
-} tempwater_task;
+} quality_task;
 
 
-class PrintTask : public Task {
+/*class PrintTask : public Task {
 protected:
     void setup() {
         pinMode(D1, OUTPUT);
@@ -73,13 +86,11 @@ public:
         Serial.println(" bytes");
         delay(10000);
     }
-} mem_task;
+} mem_task;*/
 
 
 void setup() {
   Serial.begin(9600);
-  pinMode(D1,OUTPUT);
-  pinMode(D5,OUTPUT);
   WiFi.mode(WIFI_STA);
   // connect to wifi.
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -97,9 +108,9 @@ void setup() {
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
 
 
-  Scheduler.start(&tempwater_task);
-  Scheduler.start(&print_task);
-  Scheduler.start(&mem_task);
+  Scheduler.start(&quality_task);
+/*  Scheduler.start(&print_task);
+  Scheduler.start(&mem_task);*/
   Scheduler.begin();
 } 
 
