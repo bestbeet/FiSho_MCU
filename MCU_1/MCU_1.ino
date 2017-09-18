@@ -5,25 +5,36 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 
-#define ONE_WIRE_BUS D1 // pin D1 Temprature
+
+ ////////////////////// Water Temprature Setting /////////////////////////////////
+#define ONE_WIRE_BUS D0 // pin D1 Temprature
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
-int Turbiditysensor = A0;// pin A0 Turbidity
+////////////////////////// Turbidity Setting ///////////////////////////////////////
+int Turbiditysensor;// pin Turbidity
 
-// Firebase API
+////////////////////////// pH Setting ///////////////////////////////////////
+#define SensorPin A0           // pH meter Analog output to Arduino Analog Input A1
+#define Offset 0.00            // deviation compensate
+unsigned long int avgValue;     // Store the average value of the sensor feedback
+
+////////////////////////////// Water Level Setting ////////////////////////////////
+#define W1 D1 // normal
+#define W2 D2 // stay alearted
+#define W3 D3 // danger
+
+
+
+///////////////////////////////// Firebase Setting /////////////////////////////////////
 #define FIREBASE_HOST "fisho-7fc6a.firebaseio.com"
 #define FIREBASE_AUTH "IQJgmypRZvKw2vnTnbP7WSylVViv75UKfyhCZogT"
 
-// Wifi Setting
+//////////////////////////////// Wifi Setting /////////////////////////////////////////////
 #define WIFI_SSID "best"
 #define WIFI_PASSWORD "bestbeet2538"
 
-int i = 0, val = 0;
-String stat;
-float Tempwater;
-
-////////////////////////////////////// Turbidity /////////////////////////////////////////////////
+////////////////////////////////////// Turbidity Functino /////////////////////////////////////////////////
  float Turbidity ()
 {
   float val = analogRead(Turbiditysensor);  //create variable to take in analog reading from cell
@@ -35,6 +46,38 @@ float Tempwater;
   return NTUval;
 }
 
+/////////////////////////////////////////// pH Function ////////////////////////////////////////////
+float pHsensor()
+{
+  int buf[10];                //buffer for read analog
+  for(int i=0;i<10;i++)       //Get 10 sample value from the sensor for smooth the value
+  {
+    buf[i]=analogRead(SensorPin);
+    delay(10);
+  }
+  for(int i=0;i<9;i++)        //sort the analog from small to large
+  {
+    for(int j=i+1;j<10;j++)
+    {
+      if(buf[i]>buf[j])
+      {
+        int temp=buf[i];
+        buf[i]=buf[j];
+        buf[j]=temp;
+      }
+    }
+  }
+  avgValue=0;
+  for(int i=2;i<8;i++)                      //take the average value of 6 center sample
+    avgValue+=buf[i];
+  float phValue=(float)avgValue*5.0/1024/6; //convert the analog into millivolt
+  phValue=3.5*phValue+Offset;                      //convert the millivolt into pH value    
+ 
+  delay(800);
+  return phValue;
+}
+
+
 
 //////////////////////////////////// WaterQulity Task ///////////////////////////////////////////
 class WaterQuality : public Task { 
@@ -42,43 +85,40 @@ protected:
      void setup() {
     }
     void loop() {
-          float temp,turbidity;
+          float temp,turbidity,pH;
           temp = sensors.getTempCByIndex(0);
           sensors.requestTemperatures();
-          turbidity = Turbidity();
+          //turbidity = Turbidity();
+          //pH = pHsensor();
+          
           Serial.println(temp);
-          Serial.println(turbidity);
+          //Serial.println(turbidity);
+          //Serial.println(pH);
+          
           Firebase.setFloat("/WaterQuality/Temp/", temp);
-          Firebase.setFloat("/WaterQuality/Turbidity/", turbidity);      
+          //Firebase.setFloat("/WaterQuality/Turbidity/", turbidity);
+          //Firebase.setFloat("/WaterQuality/pH/", pH);     
     } 
 private:
     uint8_t state;
 } quality_task;
 
 
-/*class PrintTask : public Task {
+
+class WaterLevel : public Task {
 protected:
     void setup() {
-        pinMode(D1, OUTPUT);
+        pinMode(D1, INPUT);
+        pinMode(D2, INPUT);
+        pinMode(D3, INPUT);
     }
     
     void loop()  {
-          stat = Firebase.getString("/FiSho/Status/");
-          Serial.println(stat);
-          if(stat == "Enable"){
-          val =  Firebase.getInt("/FiSho/Volume/") *1000;
-          Serial.println(val);
-          digitalWrite(D1, 1);
-          delay(val);
-          digitalWrite(D1, 0);
-          Firebase.setString("/FiSho/Status/", "Disable");
-          }
-          else
-             digitalWrite(D1, 0);
+          
     }
-} print_task;
+} waterlevel_task;
 
-class MemTask : public Task {
+/*class MemTask : public Task {
 public:
     void loop() {
         Serial.print("Free Heap: ");
