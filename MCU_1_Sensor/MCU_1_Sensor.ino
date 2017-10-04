@@ -4,12 +4,17 @@
 #include <FirebaseArduino.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-
+#include <MCP3008.h>
+#define CS_PIN D8
+#define CLOCK_PIN D5
+#define MOSI_PIN D7
+#define MISO_PIN D6
+MCP3008 adc(CLOCK_PIN, MOSI_PIN, MISO_PIN, CS_PIN);
 ////////////////////////////// Deep Sleep ////////////////////////////////////////
 #define SECONDS_DS(seconds)  ((seconds)*1000000UL)
 
  ////////////////////// Water Temprature Setting /////////////////////////////////
-#define ONE_WIRE_BUS D0 // pin D1 Temprature
+#define ONE_WIRE_BUS D1 // pin D1 Temprature
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
@@ -17,27 +22,24 @@ DallasTemperature sensors(&oneWire);
 int Turbiditysensor;// pin Turbidity
 
 ////////////////////////// pH Setting ///////////////////////////////////////
-#define SensorPin A0           // pH meter Analog output to Arduino Analog Input A1
+//#define SensorPin A0           // pH meter Analog output to Arduino Analog Input A1
 #define Offset 0.00            // deviation compensate
 unsigned long int avgValue;     // Store the average value of the sensor feedback
 
 ////////////////////////////// Water Level Setting ////////////////////////////////
-#define W1 D1 // normal
-#define W2 D2 // stay alearted
-#define W3 D3 // danger
-
+int W0=0,W1,W2,W3;  // normal
 ///////////////////////////////// Firebase Setting /////////////////////////////////////
 #define FIREBASE_HOST "fisho-7fc6a.firebaseio.com"
 #define FIREBASE_AUTH "IQJgmypRZvKw2vnTnbP7WSylVViv75UKfyhCZogT"
 
 //////////////////////////////// Wifi Setting /////////////////////////////////////////////
-#define WIFI_SSID "best"
-#define WIFI_PASSWORD "bestbeet2538"
+#define WIFI_SSID "Best"
+#define WIFI_PASSWORD "best2538{}"
 
 ////////////////////////////////////// Turbidity Functino /////////////////////////////////////////////////
  float Turbidity ()
 {
-  float val = analogRead(Turbiditysensor);  //create variable to take in analog reading from cell
+  float val = adc.readADC(1);  //create variable to take in analog reading from cell
   float ardval = val*0.00488758553;  //arduino value units 
   float r1 = (50000/ardval)-10000; //R1 value when using Ohm's law
   float I = ardval/r1; //value of I which we are solving for
@@ -52,7 +54,7 @@ float pHsensor()
   int buf[10];                //buffer for read analog
   for(int i=0;i<10;i++)       //Get 10 sample value from the sensor for smooth the value
   {
-    buf[i]=analogRead(SensorPin);
+    buf[i]=adc.readADC(0);
     delay(10);
   }
   for(int i=0;i<9;i++)        //sort the analog from small to large
@@ -80,21 +82,26 @@ float pHsensor()
 ///////////////////////////////////////// Water Level Function //////////////////////////////////////////////
 int Waterlevel()
 {
-  int level = 0,w1,w2,w3;
-  w1 = digitalRead(W1);
-  w2 = digitalRead(W2);
-  w3 = digitalRead(W3);
-  if ( w1 == 0 )
+  int level=0;
+
+  W1 = digitalRead(D2);
+  W2 = digitalRead(D3);
+  W3 = digitalRead(D4);
+  if ( W1 == 0 )
   {
     level = 1;
   }
-  else if ( w2 == 0 )
+  if ( W2 == 0 )
   {
     level = 2;
   }
-  else if ( w3 == 0 )
+  if ( W3 == 0 )
   {
     level = 3;
+  }
+  if ( (W1 == 1 && W2 == 1) && W3 == 1 )
+  {
+    level = 0;
   }
   
   return level;
@@ -109,17 +116,16 @@ protected:
           float temp,turbidity,pH;
           temp = sensors.getTempCByIndex(0);
           sensors.requestTemperatures();
-          //turbidity = Turbidity();
-          //pH = pHsensor();
+          turbidity = Turbidity();
+          pH = pHsensor();
           
           Serial.println(temp);
-          //Serial.println(turbidity);
-          //Serial.println(pH);
+          Serial.println(turbidity);
+          Serial.println(pH);
           
           Firebase.setFloat("/WaterQuality/Temp/", temp);
-          
-          //Firebase.setFloat("/WaterQuality/Turbidity/", turbidity);
-          //Firebase.setFloat("/WaterQuality/pH/", pH);     
+          Firebase.setFloat("/WaterQuality/Turbidity/", turbidity);
+          Firebase.setFloat("/WaterQuality/pH/", pH);     
     } 
 private:
     uint8_t state;
@@ -134,6 +140,7 @@ protected:
     
     void loop()  {
       int waterlevel;
+
 
       waterlevel = Waterlevel();
       if( waterlevel == 0 )
@@ -155,12 +162,12 @@ protected:
     }
 } waterlevel_task;
 
-class DeepSleep : public Task {
+/*class DeepSleep : public Task {
 public:
     void loop() {
         ESP.deepSleep(SECONDS_DS(5));
     }
-} sleep_task;
+} sleep_task;*/
 
 
 void setup() {
@@ -184,7 +191,7 @@ void setup() {
 
   Scheduler.start(&quality_task);
   Scheduler.start(&waterlevel_task);
-  Scheduler.start(&sleep_task);
+  //Scheduler.start(&sleep_task);
   Scheduler.begin();
 } 
 
