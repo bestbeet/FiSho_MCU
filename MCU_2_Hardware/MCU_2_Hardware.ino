@@ -9,65 +9,46 @@
 #define FIREBASE_AUTH "IQJgmypRZvKw2vnTnbP7WSylVViv75UKfyhCZogT"
 
 // Wifi Setting
-#define WIFI_SSID "best"
-#define WIFI_PASSWORD "bestbeet2538"
+#define WIFI_SSID "Best"
+#define WIFI_PASSWORD "best2538{}"
 
-int pH = A0;// pin A0 pH
+///////////////////////////////// Ultrasonic Set //////////////////////////////////
+const int pingPin = D1;
+int inPin = D2;
 
-
-int i = 0, val = 0;
-String stat;
-float Tempwater;
-
-/////////////////////////////////////////// pH ////////////////////////////////////////////
-float pHsensor()
+////////////////////////////////////////////////////// Calculator Ultrasonic ////////////////////////////////////////////////////////
+long microsecondsToCentimeters(long microseconds) 
 {
-  int buf[10];                //buffer for read analog
-  for(int i=0;i<10;i++)       //Get 10 sample value from the sensor for smooth the value
-  {
-    buf[i]=analogRead(SensorPin);
-    delay(10);
-  }
-  for(int i=0;i<9;i++)        //sort the analog from small to large
-  {
-    for(int j=i+1;j<10;j++)
-    {
-      if(buf[i]>buf[j])
-      {
-        int temp=buf[i];
-        buf[i]=buf[j];
-        buf[j]=temp;
-      }
-    }
-  }
-  avgValue=0;
-  for(int i=2;i<8;i++)                      //take the average value of 6 center sample
-    avgValue+=buf[i];
-  float phValue=(float)avgValue*5.0/1024/6; //convert the analog into millivolt
-  phValue=3.5*phValue+Offset;                      //convert the millivolt into pH value    
- 
-  delay(800);
-  return phValue;
+  return microseconds / 29 / 2;
 }
 
-//////////////////////////////////// WaterQulity Task ///////////////////////////////////////////
-class WaterQuality : public Task { 
+//////////////////////////////////// FoodLevel Task ///////////////////////////////////////////
+class FoodLevel : public Task { 
 protected:
      void setup() {
-    }
+      Serial.begin (9600);
+      pinMode(TRIGGER_PIN, OUTPUT);
+      pinMode(ECHO_PIN, INPUT);
+    }    
     void loop() {
-          float temp,turbidity;
-          temp = sensors.getTempCByIndex(0);
-          sensors.requestTemperatures();
-          turbidity = Turbidity();
-          Serial.println(temp);
-          Serial.println(turbidity);
-          Firebase.setFloat("/WaterQuality/Temp/", temp);
-          Firebase.setFloat("/WaterQuality/Turbidity/", turbidity);      
+          long duration, cm;
+          pinMode(pingPin, OUTPUT);
+          digitalWrite(pingPin, LOW);
+          delayMicroseconds(2);
+          digitalWrite(pingPin, HIGH);
+          delayMicroseconds(5);
+          digitalWrite(pingPin, LOW);
+          pinMode(inPin, INPUT);
+          duration = pulseIn(inPin, HIGH);
+          cm = microsecondsToCentimeters(duration);
+          Serial.print(cm);
+          Serial.println("cm");
+          delay(200);
+          Firebase.setFloat("/FoodLevel/Temp/", cm);
     } 
 private:
     uint8_t state;
-} quality_task;
+} food_task;
 
 
 /*class PrintTask : public Task {
@@ -122,7 +103,7 @@ void setup() {
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
 
 
-  Scheduler.start(&tempwater_task);
+  Scheduler.start(&food_task);
   Scheduler.begin();
 } 
 
