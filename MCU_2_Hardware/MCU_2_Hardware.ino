@@ -1,8 +1,9 @@
+
 #include <Arduino.h>
 #include <Scheduler.h> 
 #include <ESP8266WiFi.h>
 #include <FirebaseArduino.h>
-#include <OneWire.h>
+
 
 // Firebase API
 #define FIREBASE_HOST "fisho-7fc6a.firebaseio.com"
@@ -16,6 +17,12 @@
 const int pingPin = D1;
 int inPin = D2;
 
+//////////////////////////////// PunpIn Set ////////////////////////
+int pumpin = D3;
+
+/////////////////////////////// PumpOut Set ////////////////////////
+int pumpout = D4;
+
 ////////////////////////////////////////////////////// Calculator Ultrasonic ////////////////////////////////////////////////////////
 long microsecondsToCentimeters(long microseconds) 
 {
@@ -27,8 +34,7 @@ class FoodLevel : public Task {
 protected:
      void setup() {
       Serial.begin (9600);
-      pinMode(TRIGGER_PIN, OUTPUT);
-      pinMode(ECHO_PIN, INPUT);
+
     }    
     void loop() {
           long duration, cm;
@@ -41,8 +47,8 @@ protected:
           pinMode(inPin, INPUT);
           duration = pulseIn(inPin, HIGH);
           cm = microsecondsToCentimeters(duration);
-          Serial.print(cm);
-          Serial.println("cm");
+          /*Serial.print(cm);
+          Serial.println("cm");*/
           delay(200);
           Firebase.setFloat("/FoodLevel/Temp/", cm);
     } 
@@ -50,38 +56,44 @@ private:
     uint8_t state;
 } food_task;
 
-
-/*class PrintTask : public Task {
+///////////////////////////// PumpIn Task ////////////////////////////////////////////////////////
+class PumpIn : public Task {
 protected:
     void setup() {
-        pinMode(D1, OUTPUT);
+      pinMode(pumpin, OUTPUT);
+      Serial.begin (9600);
     }
     
     void loop()  {
-          stat = Firebase.getString("/FiSho/Status/");
-          Serial.println(stat);
-          if(stat == "Enable"){
-          val =  Firebase.getInt("/FiSho/Volume/") *1000;
-          Serial.println(val);
-          digitalWrite(D1, 1);
-          delay(val);
-          digitalWrite(D1, 0);
-          Firebase.setString("/FiSho/Status/", "Disable");
+          String PumpInStatus = Firebase.getString("/Tank/WaterLevel/");
+  
+          if( PumpInStatus == "Low Level"){
+            digitalWrite(pumpin, 0);
           }
-          else
-             digitalWrite(D1, 0);
+          else if ( PumpInStatus == "Normal"){
+            digitalWrite(pumpin, 1);
+          }
     }
-} print_task;*/
+} pumpin_task;
 
-/*class MemTask : public Task {
-public:
-    void loop() {
-        Serial.print("Free Heap: ");
-        Serial.print(ESP.getFreeHeap());
-        Serial.println(" bytes");
-        delay(10000);
+//////////////////////////////// PumpOut Task ////////////////////////////////////////////////////
+class PumpOut : public Task {
+protected:
+    void setup() {
+        pinMode(pumpout, OUTPUT);
     }
-} mem_task;*/
+    
+    void loop()  {
+          String PumpOutStatus = Firebase.getString("/Tank/WaterLevel/");
+  
+          if( PumpOutStatus == "Dangerous"){
+            digitalWrite(pumpout, 0);
+          }
+          else if ( PumpOutStatus == "Normal"){
+            digitalWrite(pumpout, 1);
+          }
+    }
+} pumpout_task;
 
 
 void setup() {
@@ -99,11 +111,13 @@ void setup() {
   Serial.print("connected: ");
   Serial.println(WiFi.localIP());
   Serial.begin(9600);
-  sensors.begin();
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
 
 
   Scheduler.start(&food_task);
+  Scheduler.start(&pumpin_task);
+  Scheduler.start(&pumpout_task);
+  
   Scheduler.begin();
 } 
 
