@@ -22,6 +22,8 @@ int pumpin = D3;
 
 /////////////////////////////// PumpOut Set ////////////////////////
 int pumpout = D4;
+////////////////////////////// Oxygen Set /////////////////////////////
+int oxygen = D5;
 
 ////////////////////////////////////////////////////// Calculator Ultrasonic ////////////////////////////////////////////////////////
 long microsecondsToCentimeters(long microseconds) 
@@ -38,6 +40,7 @@ protected:
     }    
     void loop() {
           long duration, cm;
+          float foodlevelset,foodlevel = 0;
           pinMode(pingPin, OUTPUT);
           digitalWrite(pingPin, LOW);
           delayMicroseconds(2);
@@ -47,10 +50,10 @@ protected:
           pinMode(inPin, INPUT);
           duration = pulseIn(inPin, HIGH);
           cm = microsecondsToCentimeters(duration);
-          /*Serial.print(cm);
-          Serial.println("cm");*/
           delay(200);
-          Firebase.setFloat("/FoodLevel/Temp/", cm);
+          foodlevelset = Firebase.getFloat("/FoodLevel/LevelSet/");
+          foodlevel = ((foodlevelset-foodlevel)/foodlevelset)*100;
+          Firebase.setFloat("/FoodLevel/Level/", foodlevel);
     } 
 private:
     uint8_t state;
@@ -95,6 +98,23 @@ protected:
     }
 } pumpout_task;
 
+///////////////////////////////// Oxygen Task //////////////////////////////////////////////
+class Oxygen : public Task {
+  protected:
+    void setup(){
+          pinMode(oxygen, OUTPUT);
+    }
+    void loop(){
+          float minutes,timedelay = 0;
+          minutes = Firebase.getFloat("/TankSet/TimeOxygen/");
+          timedelay = minutes*60*1000;
+          digitalWrite(oxygen, 1);
+          delay(timedelay);
+          digitalWrite(oxygen, 0);
+          delay(timedelay);
+      
+    }
+} oxygen_task;
 
 void setup() {
   Serial.begin(9600);
@@ -117,6 +137,7 @@ void setup() {
   Scheduler.start(&food_task);
   Scheduler.start(&pumpin_task);
   Scheduler.start(&pumpout_task);
+  Scheduler.start(&oxygen_task);
   
   Scheduler.begin();
 } 
