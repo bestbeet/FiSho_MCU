@@ -19,7 +19,6 @@ int inPin = D2;
 
 //////////////////////////////// PunpIn Set ////////////////////////
 int pumpin = D3;
-
 /////////////////////////////// PumpOut Set ////////////////////////
 int pumpout = D4;
 ////////////////////////////// Oxygen Set /////////////////////////////
@@ -60,43 +59,37 @@ private:
 } food_task;
 
 ///////////////////////////// PumpIn Task ////////////////////////////////////////////////////////
-class PumpIn : public Task {
+class Pump : public Task {
 protected:
     void setup() {
       pinMode(pumpin, OUTPUT);
+      pinMode(pumpout, OUTPUT);
       Serial.begin (9600);
     }
     
     void loop()  {
-          String PumpInStatus = Firebase.getString("/Tank/WaterLevel/");
+          String PumpStatus = Firebase.getString("/Tank/WaterLevel/");
   
-          if( PumpInStatus == "Low Level"){
-            digitalWrite(pumpin, 0);
+          if( PumpStatus == "Low Level"){
+            digitalWrite(pumpin, HIGH);
+            digitalWrite(pumpout, LOW);
+            Firebase.setString("/Tank/Pump/","Enable");
+            Firebase.setString("/Tank/PumpOut/","Disable");
           }
-          else if ( PumpInStatus == "Normal"){
-            digitalWrite(pumpin, 1);
+          else if ( PumpStatus == "Dangerous"){
+            digitalWrite(pumpout, HIGH);
+            digitalWrite(pumpin, LOW);
+            Firebase.setString("/Tank/PumpOut/","Enable");
+            Firebase.setString("/Tank/Pump/","Disable");
           }
-    }
-} pumpin_task;
-
-//////////////////////////////// PumpOut Task ////////////////////////////////////////////////////
-class PumpOut : public Task {
-protected:
-    void setup() {
-        pinMode(pumpout, OUTPUT);
-    }
-    
-    void loop()  {
-          String PumpOutStatus = Firebase.getString("/Tank/WaterLevel/");
-  
-          if( PumpOutStatus == "Dangerous"){
-            digitalWrite(pumpout, 0);
-          }
-          else if ( PumpOutStatus == "Normal"){
-            digitalWrite(pumpout, 1);
+          else if ( PumpStatus == "Normal") {
+            digitalWrite(pumpin, LOW);
+            digitalWrite(pumpout, LOW);
+            Firebase.setString("/Tank/Pump/","Disable");
+            Firebase.setString("/Tank/PumpOut/","Disable");
           }
     }
-} pumpout_task;
+} pump_task;
 
 ///////////////////////////////// Oxygen Task //////////////////////////////////////////////
 class Oxygen : public Task {
@@ -108,9 +101,11 @@ class Oxygen : public Task {
           float minutes,timedelay = 0;
           minutes = Firebase.getFloat("/TankSet/TimeOxygen/");
           timedelay = minutes*60*1000;
-          digitalWrite(oxygen, 1);
+          digitalWrite(oxygen, HIGH);
+          Firebase.setString("/Tank/Oxygen/","Enable");
           delay(timedelay);
-          digitalWrite(oxygen, 0);
+          digitalWrite(oxygen, LOW);
+          Firebase.setString("/Tank/Oxygen/","Disable");
           delay(timedelay);
       
     }
@@ -125,18 +120,15 @@ void setup() {
   
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
-    delay(500);
+    delay(500); 
   }
   Serial.println();
   Serial.print("connected: ");
   Serial.println(WiFi.localIP());
   Serial.begin(9600);
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
-
-
   Scheduler.start(&food_task);
-  Scheduler.start(&pumpin_task);
-  Scheduler.start(&pumpout_task);
+  Scheduler.start(&pump_task);
   Scheduler.start(&oxygen_task);
   
   Scheduler.begin();
