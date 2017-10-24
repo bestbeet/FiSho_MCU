@@ -1,4 +1,3 @@
-
 #include <Arduino.h>
 #include <Scheduler.h>
 #include <ESP8266WiFi.h>
@@ -29,6 +28,13 @@ long microsecondsToCentimeters(long microseconds)
 {
   return microseconds / 29 / 2;
 }
+/////////////////////////////////////////// Calculator Food Level /////////////////////////////////////
+float foodpercent(float cm){
+  float foodlevelset,foodlevel;
+  foodlevelset = Firebase.getFloat("/FoodLevel/LevelSet/");
+  foodlevel = ((foodlevelset-cm)/foodlevelset)*100;
+  return foodlevel;
+}
 ////////////////////////////////////////////// PumpIn On //////////////////////////////////////////
 void pumpinon (){
   digitalWrite(pumpin, HIGH);
@@ -53,25 +59,44 @@ void pumpoutoff(){
 class FoodLevel : public Task {
 protected:
      void setup() {
+      pinMode(pingPin, OUTPUT);
+      pinMode(inPin, INPUT);
       Serial.begin (9600);
 
     }
     void loop() {
           long duration, cm;
-          float foodlevelset,foodlevel = 0;
-          pinMode(pingPin, OUTPUT);
+          float food,foodlevelset;
+          
+          foodlevelset = Firebase.getFloat("/FoodLevel/LevelSet/");
+
           digitalWrite(pingPin, LOW);
           delayMicroseconds(2);
+          
           digitalWrite(pingPin, HIGH);
           delayMicroseconds(5);
+          
           digitalWrite(pingPin, LOW);
-          pinMode(inPin, INPUT);
           duration = pulseIn(inPin, HIGH);
+          
           cm = microsecondsToCentimeters(duration);
+          Serial.print("CM : ");
+          Serial.println(cm);
+          
+          food = foodpercent(cm);
+          
+          if ( cm >= 0 && cm <= foodlevelset){
+             Firebase.setFloat("/FoodLevel/Level/", food);
+          }
+          else if (cm <= foodlevelset+10){
+             Firebase.setFloat("/FoodLevel/Level/", 0);
+          }
+          else{
+             Firebase.setString("/FoodLevel/Level/", "Error");
+          }
+         
           delay(200);
-          foodlevelset = Firebase.getFloat("/FoodLevel/LevelSet/");
-          foodlevel = ((foodlevelset-foodlevel)/foodlevelset)*100;
-          Firebase.setFloat("/FoodLevel/Level/", foodlevel);
+          
     }
 private:
     uint8_t state;
@@ -98,6 +123,10 @@ protected:
             pumpinoff();
           }
           else if ( PumpStatus == "Normal") {
+            pumpinoff();
+            pumpoutoff();
+          }
+          else{
             pumpinoff();
             pumpoutoff();
           }
@@ -143,7 +172,6 @@ void setup() {
   Scheduler.start(&food_task);
   Scheduler.start(&pump_task);
   Scheduler.start(&oxygen_task);
-
   Scheduler.begin();
 }
 
