@@ -1,6 +1,6 @@
 
 #include <Arduino.h>
-#include <Scheduler.h> 
+#include <Scheduler.h>
 #include <ESP8266WiFi.h>
 #include <FirebaseArduino.h>
 
@@ -25,18 +25,37 @@ int pumpout = D4;
 int oxygen = D5;
 
 ////////////////////////////////////////////////////// Calculator Ultrasonic ////////////////////////////////////////////////////////
-long microsecondsToCentimeters(long microseconds) 
+long microsecondsToCentimeters(long microseconds)
 {
   return microseconds / 29 / 2;
 }
-
+////////////////////////////////////////////// PumpIn On //////////////////////////////////////////
+void pumpinon (){
+  digitalWrite(pumpin, HIGH);
+  Firebase.setString("/Tank/Pump/","Enable");
+}
+////////////////////////////////////////////// PumpIn Off ////////////////////////////////////////
+void pumpinoff(){
+  digitalWrite(pumpin, LOW);
+  Firebase.setString("/Tank/Pump/","Disable");
+}
+////////////////////////////////////////////// PumpOut On /////////////////////////////////////////
+void pumpouton(){
+  digitalWrite(pumpout, HIGH);
+  Firebase.setString("/Tank/PumpOut/","Enable");
+}
+///////////////////////////////////////////// PumpOut Off ///////////////////////////////////////
+void pumpoutoff(){
+  digitalWrite(pumpout, LOW);
+  Firebase.setString("/Tank/PumpOut/","Disable");
+}
 //////////////////////////////////// FoodLevel Task ///////////////////////////////////////////
-class FoodLevel : public Task { 
+class FoodLevel : public Task {
 protected:
      void setup() {
       Serial.begin (9600);
 
-    }    
+    }
     void loop() {
           long duration, cm;
           float foodlevelset,foodlevel = 0;
@@ -53,7 +72,7 @@ protected:
           foodlevelset = Firebase.getFloat("/FoodLevel/LevelSet/");
           foodlevel = ((foodlevelset-foodlevel)/foodlevelset)*100;
           Firebase.setFloat("/FoodLevel/Level/", foodlevel);
-    } 
+    }
 private:
     uint8_t state;
 } food_task;
@@ -66,27 +85,21 @@ protected:
       pinMode(pumpout, OUTPUT);
       Serial.begin (9600);
     }
-    
+
     void loop()  {
           String PumpStatus = Firebase.getString("/Tank/WaterLevel/");
-  
+
           if( PumpStatus == "Low Level"){
-            digitalWrite(pumpin, HIGH);
-            digitalWrite(pumpout, LOW);
-            Firebase.setString("/Tank/Pump/","Enable");
-            Firebase.setString("/Tank/PumpOut/","Disable");
+            pumpinon();
+            pumpoutoff();
           }
           else if ( PumpStatus == "Dangerous"){
-            digitalWrite(pumpout, HIGH);
-            digitalWrite(pumpin, LOW);
-            Firebase.setString("/Tank/PumpOut/","Enable");
-            Firebase.setString("/Tank/Pump/","Disable");
+            pumpouton();
+            pumpinoff();
           }
           else if ( PumpStatus == "Normal") {
-            digitalWrite(pumpin, LOW);
-            digitalWrite(pumpout, LOW);
-            Firebase.setString("/Tank/Pump/","Disable");
-            Firebase.setString("/Tank/PumpOut/","Disable");
+            pumpinoff();
+            pumpoutoff();
           }
     }
 } pump_task;
@@ -107,7 +120,7 @@ class Oxygen : public Task {
           digitalWrite(oxygen, LOW);
           Firebase.setString("/Tank/Oxygen/","Disable");
           delay(timedelay);
-      
+
     }
 } oxygen_task;
 
@@ -117,10 +130,10 @@ void setup() {
   // connect to wifi.
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("connecting");
-  
+
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
-    delay(500); 
+    delay(500);
   }
   Serial.println();
   Serial.print("connected: ");
@@ -130,9 +143,9 @@ void setup() {
   Scheduler.start(&food_task);
   Scheduler.start(&pump_task);
   Scheduler.start(&oxygen_task);
-  
-  Scheduler.begin();
-} 
 
-void loop() {  
+  Scheduler.begin();
+}
+
+void loop() {
  }
