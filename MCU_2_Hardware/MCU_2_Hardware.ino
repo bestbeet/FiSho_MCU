@@ -1,8 +1,9 @@
 #include <Arduino.h>
+#include <Servo.h>
 #include <Scheduler.h>
 #include <ESP8266WiFi.h>
 #include <FirebaseArduino.h>
-
+#include <Servo.h>
 
 // Firebase API
 #define FIREBASE_HOST "fisho-7fc6a.firebaseio.com"
@@ -15,7 +16,8 @@
 ///////////////////////////////// Ultrasonic Set //////////////////////////////////
 const int pingPin = D1;
 int inPin = D2;
-
+/////////////////////////////// Servo feed /////////////////////////////
+Servo myservo;
 //////////////////////////////// PunpIn Set ////////////////////////
 int pumpin = D3;
 /////////////////////////////// PumpOut Set ////////////////////////
@@ -55,21 +57,38 @@ void pumpoutoff(){
   digitalWrite(pumpout, LOW);
   Firebase.setString("/Tank/PumpOut/","Disable");
 }
+///////////////////////////// Feed in Servo Moter /////////////////////////////////////
+void feed(int val)
+{
+  if ( val == 1 )
+  {     
+    myservo.write(0); 
+  }
+  else{
+    myservo.write(90);
+  }
+                           
+}
 //////////////////////////////////// FoodLevel Task ///////////////////////////////////////////
 class FoodLevel : public Task {
 protected:
      void setup() {
       pinMode(pingPin, OUTPUT);
       pinMode(inPin, INPUT);
+      //pinMode(D6, OUTPUT);
+      myservo.attach(D6); 
+      myservo.write(90);
       Serial.begin (9600);
 
     }
     void loop() {
           long duration, cm;
           float food,foodlevelset;
+          int minute,i,n = 500;
           
           foodlevelset = Firebase.getFloat("/FoodLevel/LevelSet/");
-
+          String Status = Firebase.getString("/FeedSet/Status/");
+          minute = Firebase.getInt("/FeedSet/Minute/");
           digitalWrite(pingPin, LOW);
           delayMicroseconds(2);
           
@@ -94,8 +113,28 @@ protected:
           else{
              Firebase.setString("/FoodLevel/Level/", "Error");
           }
-         
-          delay(200);
+          
+          if (Status == "Enable"){
+            for(i = minute*60*1000;i>=0;i = i-(n*4)){
+              //digitalWrite(D6, HIGH);
+              myservo.write(0); 
+              delay(n);
+              //digitalWrite(D6, LOW);      
+              myservo.write(90); 
+              delay(n);    
+            }
+            Firebase.setString("/FeedSet/Notification/", "Enable");
+            Firebase.setString("/FeedSet/Status/", "Disable");
+            delay(500);
+            Firebase.setString("/FeedSet/Notification/", "Disable");
+          
+          }
+          else{
+            myservo.write(90);
+          }
+          
+
+          
           
     }
 private:
@@ -153,6 +192,7 @@ class Oxygen : public Task {
     }
 } oxygen_task;
 
+///////////////////////////////// Main //////////////////////////////////////////////
 void setup() {
   Serial.begin(9600);
   WiFi.mode(WIFI_STA);

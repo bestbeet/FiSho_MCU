@@ -8,8 +8,8 @@
 WiFiClient client;
 unsigned long myChannelNumber = 240769;
 const char * myWriteAPIKey = "W986B2XBZA8GEZFQ";
-const char* ssid = "best";
-const char* password = "bestbeet2538";
+const char* ssid = "Best";
+const char* password = "best2538{}";
 WiFiServer server(80);
 
 float Tempwater, Waterlevel, pH;
